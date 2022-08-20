@@ -1,6 +1,7 @@
 use rand::seq::SliceRandom;
 use std::fs::File;
 use std::io::{BufReader, Read, Write};
+use std::process::{Command, Stdio};
 
 fn main() -> std::io::Result<()> {
     let f = File::open("./exif-samples/jpg/Canon_40D.jpg")?;
@@ -10,14 +11,62 @@ fn main() -> std::io::Result<()> {
 
     // Read bytes to a buffer.
     reader.read_to_end(&mut buffer)?;
-    let mut mutated = bit_flip(&mut buffer);
-    mutated = magic_numbers(&mut mutated);
-    create_new(&mutated, "test.jpg")?;
+
+    for i in 0..500 {
+        let opts: Vec<i32> = (0..2).collect();
+        match opts.choose(&mut rand::thread_rng()) {
+            Some(0) => {
+                let data = bit_flip(&buffer);
+                let name = format!("./output/mutated_{}.jpg", i);
+                create_new(&data, name.clone())?;
+                let mut cmd = Command::new("exif");
+                let cmd_output = cmd.arg(&name.clone()).stdout(Stdio::piped());
+                match cmd_output.status() {
+                    Ok(status) => match status.code() {
+                        None => {
+                            let name = format!("./crashed/mutated_bitflip_{}.jpg", i);
+                            println!("Process terminated by signal: {}", name);
+                            create_new(&data, name.clone())?;
+                        }
+                        _ => {
+                            continue;
+                        }
+                    },
+                    Err(e) => {
+                        println!("Could not get status for {}: {}", name, e);
+                    }
+                }
+            }
+            Some(1) => {
+                let data = magic_numbers(&buffer);
+                let name = format!("./output/mutated_{}.jpg", i);
+                create_new(&data, name.clone())?;
+                let mut cmd = Command::new("exif");
+                let cmd_output = cmd.arg(&name.clone()).stdout(Stdio::piped());
+                match cmd_output.status() {
+                    Ok(status) => match status.code() {
+                        None => {
+                            let name = format!("./crashed/mutated_magic_{}.jpg", i);
+                            println!("Process terminated by signal: {}", name);
+                            create_new(&data, name.clone())?;
+                        }
+                        _ => {
+                            continue;
+                        }
+                    },
+                    Err(e) => {
+                        println!("Could not get status for {}: {}", name, e);
+                    }
+                }
+            }
+            _ => panic!("Couldn't select fuzzing method."),
+        }
+    }
 
     Ok(())
 }
 
-fn create_new(data: &Vec<u8>, name: &str) -> std::io::Result<()> {
+fn create_new(data: &Vec<u8>, name: String) -> std::io::Result<()> {
     let mut file = File::create(name)?;
     file.write_all(data)?;
 
@@ -80,56 +129,54 @@ fn magic_numbers(data: &Vec<u8>) -> Vec<u8> {
     };
 
     // Choose random index.
-    let idxs: Vec<usize> = (2..data.len() - 2).collect();
+    let idxs: Vec<usize> = (2..data.len() - 3).collect();
     let chosen_idx = match idxs.choose(&mut rand::thread_rng()) {
         Some(num) => *num,
-        None => panic!("Failed to choose index.")
+        None => panic!("Failed to choose index."),
     };
 
     match chosen_magic.0 {
         1 => {
             data[chosen_idx] = chosen_magic.1 as u8;
-        },
+        }
         2 => {
             data[chosen_idx] = chosen_magic.1 as u8;
             data[chosen_idx + 1] = chosen_magic.1 as u8;
-        },
-        4 => {
-            match chosen_magic.1 {
-                255 => {
-                    data[chosen_idx] = chosen_magic.1 as u8;
-                    data[chosen_idx + 1] = chosen_magic.1 as u8;
-                    data[chosen_idx + 2] = chosen_magic.1 as u8;
-                    data[chosen_idx + 3] = chosen_magic.1 as u8;
-                },
-                0 => {
-                    data[chosen_idx] = chosen_magic.1 as u8;
-                    data[chosen_idx + 1] = chosen_magic.1 as u8;
-                    data[chosen_idx + 2] = chosen_magic.1 as u8;
-                    data[chosen_idx + 3] = chosen_magic.1 as u8;
-                },
-                128 => {
-                    data[chosen_idx] = chosen_magic.1 as u8;
-                    data[chosen_idx + 1] = 0 as u8;
-                    data[chosen_idx + 2] = 0 as u8;
-                    data[chosen_idx + 3] = 0 as u8;
-                },
-                64 => {
-                    data[chosen_idx] = chosen_magic.1 as u8;
-                    data[chosen_idx + 1] = 0 as u8;
-                    data[chosen_idx + 2] = 0 as u8;
-                    data[chosen_idx + 3] = 0 as u8;
-                },
-                127 => {
-                    data[chosen_idx] = chosen_magic.1 as u8;
-                    data[chosen_idx + 1] = 255 as u8;
-                    data[chosen_idx + 2] = 255 as u8;
-                    data[chosen_idx + 3] = 255 as u8;
-                },
-                _ => unreachable!()
+        }
+        4 => match chosen_magic.1 {
+            255 => {
+                data[chosen_idx] = chosen_magic.1 as u8;
+                data[chosen_idx + 1] = chosen_magic.1 as u8;
+                data[chosen_idx + 2] = chosen_magic.1 as u8;
+                data[chosen_idx + 3] = chosen_magic.1 as u8;
             }
+            0 => {
+                data[chosen_idx] = chosen_magic.1 as u8;
+                data[chosen_idx + 1] = chosen_magic.1 as u8;
+                data[chosen_idx + 2] = chosen_magic.1 as u8;
+                data[chosen_idx + 3] = chosen_magic.1 as u8;
+            }
+            128 => {
+                data[chosen_idx] = chosen_magic.1 as u8;
+                data[chosen_idx + 1] = 0 as u8;
+                data[chosen_idx + 2] = 0 as u8;
+                data[chosen_idx + 3] = 0 as u8;
+            }
+            64 => {
+                data[chosen_idx] = chosen_magic.1 as u8;
+                data[chosen_idx + 1] = 0 as u8;
+                data[chosen_idx + 2] = 0 as u8;
+                data[chosen_idx + 3] = 0 as u8;
+            }
+            127 => {
+                data[chosen_idx] = chosen_magic.1 as u8;
+                data[chosen_idx + 1] = 255 as u8;
+                data[chosen_idx + 2] = 255 as u8;
+                data[chosen_idx + 3] = 255 as u8;
+            }
+            _ => unreachable!(),
         },
-        _ => unreachable!()
+        _ => unreachable!(),
     }
 
     data
