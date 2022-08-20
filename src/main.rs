@@ -12,6 +12,7 @@ fn main() -> std::io::Result<()> {
     // Read bytes to a buffer.
     reader.read_to_end(&mut buffer)?;
 
+    // TODO: refactor, maybe some multithreading?
     for i in 0..500 {
         let opts: Vec<i32> = (0..2).collect();
         match opts.choose(&mut rand::thread_rng()) {
