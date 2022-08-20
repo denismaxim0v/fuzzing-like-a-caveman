@@ -1,0 +1,2 @@
+# Fuzzing like a caveman.
+This repo is just a simple fuzzer implemented in rust following the [Fuzzing Like a Caveman](https://h0mbre.github.io/Fuzzing-Like-A-Caveman/#) article by [@h0mbre_](https://twitter.com/h0mbre_)
